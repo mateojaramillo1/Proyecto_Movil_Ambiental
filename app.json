@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "VINUS AMBIENTAL",
+    "slug": "proyecto-ambiental-movil-teoja",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "updates": {
+      "url": "https://u.expo.dev/1424f922-ae99-44fe-8c19-0cafd19e4410",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "splash": {
+      "image": "./assets/logo_vinus.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#275493"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vinustransporte.proyectoambiental",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "VINUS AMBIENTAL necesita tu ubicacion para registrar la inspeccion del arbol."
+      }
+    },
+    "android": {
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#275493"
+      },
+      "package": "com.vinustransporte.proyectoambiental",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {},
+    "plugins": [
+      "expo-sqlite",
+      "expo-location"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1424f922-ae99-44fe-8c19-0cafd19e4410"
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import {
   Platform,
   UIManager,
   TouchableOpacity,
+  ScrollView,
   ActivityIndicator,
   Alert,
   Easing
@@ -31,6 +32,19 @@ const getMarkerColor = (ubicacionVia) => {
   if (key === 'TALUD INFERIOR') return '#fb8c00';
   return '#6d4c41';
 };
+
+const getCriticidadColor = (registro) => {
+  if (registro?.colorCriticidad) return registro.colorCriticidad;
+  return getMarkerColor(registro?.ubicacionVia);
+};
+
+const FILTROS_CRITICIDAD = [
+  { key: 'Baja', color: '#43a047', accent: '#d9f2df' },
+  { key: 'Media', color: '#c6a800', accent: '#fff9c4' },
+  { key: 'Alta', color: '#fb8c00', accent: '#ffe0b8' },
+  { key: 'Muy alta', color: '#e53935', accent: '#ffd7d6' },
+  { key: 'Critica', color: '#7b1f1f', accent: '#efc7c7' },
+];
 
 const escapeHtml = (value) => {
   return String(value || '')
@@ -74,12 +88,14 @@ const buildLeafletHtml = (points, currentLocation) => {
   const pointsJson = JSON.stringify(
     points.map((p) => ({
       ...p,
-      color: getMarkerColor(p.ubicacionVia),
+      color: p.colorCriticidad || getMarkerColor(p.ubicacionVia),
       idArbol: escapeHtml(p.idArbol),
       especie: escapeHtml(p.especie),
       inspector: escapeHtml(p.inspector),
       fechaInspeccion: escapeHtml(p.fechaInspeccion),
       ubicacionVia: escapeHtml(p.ubicacionVia),
+      nivelCriticidad: escapeHtml(p.nivelCriticidad || 'Sin clasificar'),
+      puntajeCriticidad: p.puntajeCriticidad ?? null,
       coordsDms: escapeHtml(formatCoordsDms(p.latitude, p.longitude))
     }))
   );
@@ -217,39 +233,6 @@ const buildLeafletHtml = (points, currentLocation) => {
       55% { transform: translateX(210%); }
       100% { transform: translateX(210%); }
     }
-    .panel {
-      position: absolute;
-      z-index: 9999;
-      left: 12px;
-      top: 12px;
-      background: rgba(255,255,255,0.86);
-      backdrop-filter: blur(10px);
-      border-radius: 16px;
-      padding: 10px 12px;
-      border: 1px solid rgba(190, 221, 190, 0.9);
-      box-shadow: 0 10px 28px rgba(31, 73, 43, 0.18);
-      min-width: 180px;
-    }
-    .panel h4 {
-      margin: 0 0 8px 0;
-      font-size: 13px;
-      color: #1e5a35;
-    }
-    .item {
-      display: flex;
-      align-items: center;
-      margin: 5px 0;
-      font-size: 11px;
-      color: #355643;
-    }
-    .dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      margin-right: 8px;
-      border: 2px solid #fff;
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
-    }
     .map-badge {
       position: absolute;
       z-index: 9999;
@@ -313,10 +296,20 @@ const buildLeafletHtml = (points, currentLocation) => {
       bottom: 1px;
       animation: treePulse 1.8s ease-out infinite;
     }
+    .tree-pin .tree-core {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255,255,255,0.96);
+      box-shadow: 0 8px 16px rgba(16,44,24,0.24);
+    }
     .tree-pin .tree-emoji {
-      font-size: 34px;
-      line-height: 34px;
-      text-shadow: 0 3px 8px rgba(16,44,24,0.25);
+      font-size: 24px;
+      line-height: 24px;
+      text-shadow: 0 2px 5px rgba(16,44,24,0.18);
     }
     @keyframes markerPop {
       0% { opacity: 0; transform: translateY(-34px) scale(0.22) rotate(-8deg); }
@@ -345,6 +338,19 @@ const buildLeafletHtml = (points, currentLocation) => {
       border-radius: 999px;
       border: 2px solid rgba(25, 118, 210, 0.28);
     }
+    .route-tip {
+      background: rgba(25, 118, 210, 0.94);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      box-shadow: 0 8px 16px rgba(9, 44, 79, 0.25);
+    }
+    .route-tip:before {
+      display: none;
+    }
     @keyframes userPulse {
       0% { transform: scale(0.95); }
       55% { transform: scale(1.08); }
@@ -363,14 +369,6 @@ const buildLeafletHtml = (points, currentLocation) => {
   </div>
   <div class="ambience"></div>
   <div class="ambience-bottom"></div>
-  <div class="panel">
-    <h4>Arboles inspeccionados</h4>
-    <div class="item"><span class="dot" style="background:#e53935"></span>Talud Superior</div>
-    <div class="item"><span class="dot" style="background:#1e88e5"></span>Berma</div>
-    <div class="item"><span class="dot" style="background:#43a047"></span>Separador</div>
-    <div class="item"><span class="dot" style="background:#fb8c00"></span>Talud Inferior</div>
-    <div class="item"><span class="dot" style="background:#1976d2"></span>Tu ubicacion actual</div>
-  </div>
   <div class="map-badge">VINUS AMBIENTAL</div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
@@ -450,8 +448,187 @@ const buildLeafletHtml = (points, currentLocation) => {
     setTimeout(revealMap, 900);
 
     const markersLayer = L.layerGroup().addTo(map);
+    const guidanceLayer = L.layerGroup().addTo(map);
     let userMarker = null;
     let userAccuracyCircle = null;
+    let guidanceLine = null;
+    let guidanceLineOutline = null;
+    let guidanceTarget = null;
+    let guidanceRequestSeq = 0;
+    let markersByNivel = {};
+
+    const clearGuidance = () => {
+      guidanceLayer.clearLayers();
+      guidanceLine = null;
+      guidanceLineOutline = null;
+    };
+
+    const fetchRoadRoute = async (targetPoint) => {
+      if (!currentLocation || !targetPoint) return null;
+
+      const fetchWithTimeout = (url, timeoutMs) => {
+        return Promise.race([
+          fetch(url),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('timeout')), timeoutMs);
+          })
+        ]);
+      };
+
+      const start = currentLocation.longitude + ',' + currentLocation.latitude;
+      const end = targetPoint.longitude + ',' + targetPoint.latitude;
+      const profiles = ['driving', 'walking', 'cycling'];
+
+      const requests = profiles.map(async (profile) => {
+        const url =
+          'https://router.project-osrm.org/route/v1/' + profile + '/' + start + ';' + end +
+          '?overview=full&geometries=geojson&alternatives=true&steps=false';
+
+        try {
+          const response = await fetchWithTimeout(url, 8000);
+          if (!response.ok) return [];
+          const data = await response.json();
+          const routes = Array.isArray(data && data.routes) ? data.routes : [];
+
+          return routes
+            .map((route) => {
+              if (!route || !route.geometry || !Array.isArray(route.geometry.coordinates)) return null;
+              const coords = route.geometry.coordinates
+                .filter((c) => Array.isArray(c) && c.length >= 2)
+                .map((c) => [c[1], c[0]]);
+              if (coords.length < 2) return null;
+
+              return {
+                coords,
+                distanceMeters: Number(route.distance) || null,
+                profile,
+                fromRoadNetwork: true
+              };
+            })
+            .filter(Boolean);
+        } catch (error) {
+          return [];
+        }
+      });
+
+      const settled = await Promise.allSettled(requests);
+      const candidates = [];
+      settled.forEach((result) => {
+        if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+          result.value.forEach((candidate) => candidates.push(candidate));
+        }
+      });
+
+      if (candidates.length === 0) return null;
+
+      candidates.sort((a, b) => {
+        const aDist = Number.isFinite(a.distanceMeters) ? a.distanceMeters : Infinity;
+        const bDist = Number.isFinite(b.distanceMeters) ? b.distanceMeters : Infinity;
+        return aDist - bDist;
+      });
+
+      return candidates[0];
+    };
+
+    const drawGuidanceTo = async (targetPoint, shouldFocus = true) => {
+      if (!targetPoint || !currentLocation) {
+        clearGuidance();
+        return;
+      }
+
+      guidanceTarget = {
+        latitude: targetPoint.latitude,
+        longitude: targetPoint.longitude,
+        idArbol: targetPoint.idArbol || 'Arbol'
+      };
+
+      const requestId = guidanceRequestSeq + 1;
+      guidanceRequestSeq = requestId;
+
+      clearGuidance();
+
+      let routeCoords = [
+        [currentLocation.latitude, currentLocation.longitude],
+        [targetPoint.latitude, targetPoint.longitude]
+      ];
+      let distanceMeters = calculateDistanceMeters(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        targetPoint.latitude,
+        targetPoint.longitude
+      );
+      let fromRoadNetwork = false;
+      let selectedProfile = '';
+
+      // Dibujo inmediato con linea directa para que siempre haya feedback visual.
+      guidanceLineOutline = L.polyline(routeCoords, {
+        color: '#0d3c6f',
+        weight: 8,
+        opacity: 0.34,
+        lineJoin: 'round'
+      }).addTo(guidanceLayer);
+
+      guidanceLine = L.polyline(routeCoords, {
+        color: '#1e88e5',
+        weight: 5,
+        opacity: 0.95,
+        lineJoin: 'round'
+      }).addTo(guidanceLayer);
+
+      const directTip = 'Ruta directa: ' + formatDistance(distanceMeters);
+      guidanceLine.bindTooltip(directTip, {
+        permanent: true,
+        sticky: false,
+        direction: 'center',
+        className: 'route-tip'
+      });
+
+      if (shouldFocus) {
+        map.flyToBounds(routeCoords, {
+          padding: [60, 60],
+          maxZoom: 18,
+          duration: 0.7
+        });
+      }
+
+      const roadRoute = await fetchRoadRoute(targetPoint);
+      if (guidanceRequestSeq !== requestId) {
+        return;
+      }
+
+      if (roadRoute && Array.isArray(roadRoute.coords) && roadRoute.coords.length > 1) {
+        // OSRM respondio: borrar linea directa y dibujar ruta GPS real
+        clearGuidance();
+        routeCoords = roadRoute.coords;
+        distanceMeters = roadRoute.distanceMeters || distanceMeters;
+        fromRoadNetwork = true;
+        selectedProfile = roadRoute.profile || '';
+
+        guidanceLineOutline = L.polyline(routeCoords, {
+          color: '#0d3c6f',
+          weight: 8,
+          opacity: 0.34,
+          lineJoin: 'round'
+        }).addTo(guidanceLayer);
+
+        guidanceLine = L.polyline(routeCoords, {
+          color: '#1e88e5',
+          weight: 5,
+          opacity: 0.95,
+          lineJoin: 'round'
+        }).addTo(guidanceLayer);
+
+        guidanceLine.bindTooltip(
+          'Ruta GPS (' + selectedProfile + '): ' + formatDistance(distanceMeters),
+          { permanent: true, sticky: false, direction: 'center', className: 'route-tip' }
+        );
+
+        if (shouldFocus) {
+          map.flyToBounds(routeCoords, { padding: [60, 60], maxZoom: 18, duration: 0.75 });
+        }
+
+      }
+    };
 
     const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
       const toRad = (value) => (value * Math.PI) / 180;
@@ -513,9 +690,24 @@ const buildLeafletHtml = (points, currentLocation) => {
 
     const pointsToRender = spreadNearbyPoints(points);
 
-    const buildEmojiIcon = (delayMs) => {
+    const hexToRgba = (hex, alpha) => {
+      const normalized = String(hex || '').replace('#', '');
+      if (normalized.length !== 6) return 'rgba(46,125,50,' + alpha + ')';
+      const red = parseInt(normalized.slice(0, 2), 16);
+      const green = parseInt(normalized.slice(2, 4), 16);
+      const blue = parseInt(normalized.slice(4, 6), 16);
+      return 'rgba(' + red + ',' + green + ',' + blue + ',' + alpha + ')';
+    };
+
+    const buildEmojiIcon = (delayMs, markerColor) => {
+      const ringColor = hexToRgba(markerColor, 0.22);
+      const ringShadow = hexToRgba(markerColor, 0.08);
       return L.divIcon({
-        html: '<div class="tree-pin" style="animation-delay:' + delayMs + 'ms"><div class="tree-ring"></div><div class="tree-emoji">🌳</div></div>',
+        html:
+          '<div class="tree-pin" style="animation-delay:' + delayMs + 'ms">' +
+          '<div class="tree-ring" style="background:' + ringColor + ';box-shadow:0 0 0 8px ' + ringShadow + '"></div>' +
+          '<div class="tree-core" style="background:' + markerColor + '"><div class="tree-emoji">🌳</div></div>' +
+          '</div>',
         className: 'tree-icon-wrap',
         iconSize: [46, 52],
         iconAnchor: [23, 46],
@@ -525,6 +717,7 @@ const buildLeafletHtml = (points, currentLocation) => {
 
     const renderMarkers = () => {
       markersLayer.clearLayers();
+      markersByNivel = {};
       const bounds = [];
 
       if (currentLocation) {
@@ -560,7 +753,7 @@ const buildLeafletHtml = (points, currentLocation) => {
       pointsToRender.forEach((p, index) => {
         const delay = 140 + Math.min(index, 24) * 65;
         const marker = L.marker([p.displayLatitude, p.displayLongitude], {
-          icon: buildEmojiIcon(delay)
+          icon: buildEmojiIcon(delay, p.color)
         }).addTo(markersLayer);
 
         const spreadNote = p.wasSpread
@@ -570,17 +763,33 @@ const buildLeafletHtml = (points, currentLocation) => {
         const distanceLine = currentLocation
           ? '<div class="popup-line"><b>Distancia a ti:</b> ' + formatDistance(calculateDistanceMeters(currentLocation.latitude, currentLocation.longitude, p.latitude, p.longitude)) + '</div>'
           : '';
+        const criticidadLine =
+          '<div class="popup-line"><b>Criticidad:</b> ' + p.nivelCriticidad +
+          (p.puntajeCriticidad != null ? ' (' + p.puntajeCriticidad + '/100)' : '') + '</div>';
 
         marker.bindPopup(
           '<div class="popup-title">' + p.idArbol + '</div>' +
+          criticidadLine +
           '<div class="popup-line"><b>Especie:</b> ' + p.especie + '</div>' +
           '<div class="popup-line"><b>Inspector:</b> ' + p.inspector + '</div>' +
           '<div class="popup-line"><b>Ubicacion via:</b> ' + p.ubicacionVia + '</div>' +
           '<div class="popup-line"><b>Fecha:</b> ' + p.fechaInspeccion + '</div>' +
           '<div class="popup-line"><b>Coords:</b> ' + p.coordsDms + '</div>' +
           distanceLine +
+          '<div class="popup-line"><b>Guia:</b> toca este arbol para calcular ruta por vias desde tu posicion.</div>' +
           spreadNote
         );
+
+        marker.on('click', () => {
+          if (!currentLocation) {
+            marker.openPopup();
+            return;
+          }
+          drawGuidanceTo(p, true);
+        });
+
+        if (!markersByNivel[p.nivelCriticidad]) markersByNivel[p.nivelCriticidad] = [];
+        markersByNivel[p.nivelCriticidad].push(marker);
 
         bounds.push([p.displayLatitude, p.displayLongitude]);
       });
@@ -635,17 +844,59 @@ const buildLeafletHtml = (points, currentLocation) => {
         '<div class="popup-line"><b>Coords:</b> ' + (currentLocation.coordsDms || '-') + '</div>' +
         '<div class="popup-line"><b>Precision aprox:</b> ' + Math.round(accuracyRadius) + ' m</div>'
       );
+
+      // No redibujamos la ruta aqui: actualizar la posicion del pin es suficiente.
+      // Re-dibujar la ruta en cada GPS update cancela peticiones OSRM pendientes.
+    };
+
+    let lastMsgData = null;
+    let lastMsgTime = 0;
+
+    const applyFilter = (activeLevels) => {
+      Object.entries(markersByNivel).forEach(([nivel, markers]) => {
+        // Arboles sin criticidad evaluada siempre visibles
+        const sinClasificar = nivel === 'Sin clasificar';
+        const visible =
+          sinClasificar ||
+          !activeLevels ||
+          activeLevels.length === 0 ||
+          activeLevels.includes(nivel);
+        markers.forEach((m) => {
+          if (visible) {
+            if (!markersLayer.hasLayer(m)) markersLayer.addLayer(m);
+          } else {
+            if (markersLayer.hasLayer(m)) markersLayer.removeLayer(m);
+          }
+        });
+      });
     };
 
     const handleIncomingMessage = (event) => {
+      // Deduplicar: document y window pueden disparar el mismo mensaje dos veces
+      const now = Date.now();
+      if (event.data === lastMsgData && now - lastMsgTime < 50) return;
+      lastMsgData = event.data;
+      lastMsgTime = now;
+
       try {
         const payload = JSON.parse(event.data || '{}');
         if (payload && payload.type === 'CURRENT_LOCATION' && payload.location) {
           updateCurrentLocation(payload.location);
         }
+        if (payload && payload.type === 'SET_FILTER') {
+          applyFilter(payload.levels);
+        }
       } catch (error) {
         // Ignore malformed messages from webview bridge.
       }
+    };
+
+    // Exponemos funciones para canal alterno via injectJavaScript desde React Native.
+    window.__vinusUpdateCurrentLocation = (location) => {
+      updateCurrentLocation(location);
+    };
+    window.__vinusApplyFilter = (levels) => {
+      applyFilter(levels);
     };
 
     document.addEventListener('message', handleIncomingMessage);
@@ -661,6 +912,7 @@ const VisorMapaScreen = ({ navigation }) => {
   const [ubicacionError, setUbicacionError] = useState('');
   const [actualizandoUbicacion, setActualizandoUbicacion] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filtroNiveles, setFiltroNiveles] = useState(null); // null = todos visibles
   const webViewRef = useRef(null);
   const locationWatcherRef = useRef(null);
   const mapIntroOpacity = useRef(new Animated.Value(0)).current;
@@ -696,7 +948,10 @@ const VisorMapaScreen = ({ navigation }) => {
           especie: registro.especie || 'Sin especie',
           inspector: registro.inspector || registro.nombre || 'Sin inspector',
           fechaInspeccion: registro.fechaInspeccion || '-',
-          ubicacionVia: registro.ubicacionVia || '-'
+          ubicacionVia: registro.ubicacionVia || '-',
+          nivelCriticidad: registro.nivelCriticidad || 'Sin clasificar',
+          puntajeCriticidad: registro.puntajeCriticidad,
+          colorCriticidad: getCriticidadColor(registro)
         };
       })
       .filter(Boolean);
@@ -717,7 +972,59 @@ const VisorMapaScreen = ({ navigation }) => {
     return Number.isFinite(minima) ? minima : null;
   }, [puntos, ubicacionActual]);
 
+  const conteosPorNivel = useMemo(() => {
+    const mapa = {};
+    FILTROS_CRITICIDAD.forEach((f) => { mapa[f.key] = 0; });
+    puntos.forEach((p) => {
+      if (mapa[p.nivelCriticidad] !== undefined) mapa[p.nivelCriticidad]++;
+    });
+    return mapa;
+  }, [puntos]);
+
   const mapHtml = useMemo(() => buildLeafletHtml(puntos, ubicacionActual), [puntos]);
+
+  const webviewSource = useMemo(() => ({ html: mapHtml }), [mapHtml]);
+
+  const enviarUbicacionAlVisor = (location) => {
+    if (!hasNativeWebView || !webViewRef.current || !location) return;
+
+    const bridgeLocation = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy: location.accuracy,
+      coordsDms: formatCoordsDms(location.latitude, location.longitude)
+    };
+
+    try {
+      webViewRef.current.postMessage(
+        JSON.stringify({ type: 'CURRENT_LOCATION', location: bridgeLocation })
+      );
+      webViewRef.current.injectJavaScript(
+        'window.__vinusUpdateCurrentLocation && window.__vinusUpdateCurrentLocation(' +
+          JSON.stringify(bridgeLocation) +
+          '); true;'
+      );
+    } catch (error) {
+      // Ignore transient bridge errors while WebView initializes.
+    }
+  };
+
+  const enviarFiltroAlVisor = (levels) => {
+    if (!hasNativeWebView || !webViewRef.current) return;
+
+    try {
+      webViewRef.current.postMessage(
+        JSON.stringify({ type: 'SET_FILTER', levels })
+      );
+      webViewRef.current.injectJavaScript(
+        'window.__vinusApplyFilter && window.__vinusApplyFilter(' +
+          JSON.stringify(levels) +
+          '); true;'
+      );
+    } catch (e) {
+      // ignore bridge errors
+    }
+  };
 
   const detenerSeguimientoUbicacion = () => {
     if (locationWatcherRef.current) {
@@ -830,23 +1137,28 @@ const VisorMapaScreen = ({ navigation }) => {
     if (!hasNativeWebView || !webViewRef.current || !ubicacionActual) {
       return;
     }
-
-    const payload = JSON.stringify({
-      type: 'CURRENT_LOCATION',
-      location: {
-        latitude: ubicacionActual.latitude,
-        longitude: ubicacionActual.longitude,
-        accuracy: ubicacionActual.accuracy,
-        coordsDms: formatCoordsDms(ubicacionActual.latitude, ubicacionActual.longitude)
-      }
-    });
-
-    try {
-      webViewRef.current.postMessage(payload);
-    } catch (error) {
-      // Ignore transient bridge errors while WebView initializes.
-    }
+    enviarUbicacionAlVisor(ubicacionActual);
   }, [ubicacionActual, hasNativeWebView]);
+
+  useEffect(() => {
+    if (!hasNativeWebView || !webViewRef.current) return;
+    enviarFiltroAlVisor(filtroNiveles);
+  }, [filtroNiveles, hasNativeWebView]);
+
+  const toggleFiltroNivel = (key) => {
+    setFiltroNiveles((prev) => {
+      if (prev === null) {
+        // De "todos" → solo este nivel
+        return [key];
+      }
+      const existe = prev.includes(key);
+      if (existe) {
+        const siguiente = prev.filter((k) => k !== key);
+        return siguiente.length === 0 ? null : siguiente;
+      }
+      return [...prev, key];
+    });
+  };
 
   useEffect(() => {
     if (loading || puntos.length === 0) {
@@ -959,6 +1271,59 @@ const VisorMapaScreen = ({ navigation }) => {
         </View>
       ) : (
         <View style={styles.contentWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filtroBar}
+            contentContainerStyle={styles.filtroBarContent}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filtroChip,
+                filtroNiveles === null && styles.filtroChipTodos
+              ]}
+              onPress={() => setFiltroNiveles(null)}
+            >
+              <Text
+                style={[
+                  styles.filtroChipText,
+                  filtroNiveles === null && styles.filtroChipTextActive
+                ]}
+              >
+                Todos ({puntos.length})
+              </Text>
+            </TouchableOpacity>
+            {FILTROS_CRITICIDAD.map((nivel) => {
+              const isActive =
+                filtroNiveles !== null && filtroNiveles.includes(nivel.key);
+              return (
+                <TouchableOpacity
+                  key={nivel.key}
+                  style={[
+                    styles.filtroChip,
+                    { borderColor: nivel.color },
+                    isActive && { backgroundColor: nivel.color }
+                  ]}
+                  onPress={() => toggleFiltroNivel(nivel.key)}
+                >
+                  <View
+                    style={[
+                      styles.filtroChipDot,
+                      { backgroundColor: isActive ? '#fff' : nivel.color }
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.filtroChipText,
+                      { color: isActive ? '#fff' : nivel.color }
+                    ]}
+                  >
+                    {nivel.key} ({conteosPorNivel[nivel.key]})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
           {hasNativeWebView ? (
             <Animated.View
               style={[
@@ -972,8 +1337,12 @@ const VisorMapaScreen = ({ navigation }) => {
               <WebViewComponent
                 ref={webViewRef}
                 originWhitelist={['*']}
-                source={{ html: mapHtml }}
+                source={webviewSource}
                 style={styles.webview}
+                onLoadEnd={() => {
+                  enviarFiltroAlVisor(filtroNiveles);
+                  enviarUbicacionAlVisor(ubicacionActual);
+                }}
                 javaScriptEnabled
                 domStorageEnabled
                 startInLoadingState
@@ -1102,6 +1471,45 @@ const styles = StyleSheet.create({
     color: '#754848',
     fontSize: 12,
     lineHeight: 18
+  },
+  filtroBar: {
+    flexGrow: 0,
+    backgroundColor: '#f0f9f2'
+  },
+  filtroBarContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  filtroChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#b0cdb5',
+    backgroundColor: '#fff',
+    gap: 5
+  },
+  filtroChipTodos: {
+    backgroundColor: '#1f5d38',
+    borderColor: '#1f5d38'
+  },
+  filtroChipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999
+  },
+  filtroChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3a6645'
+  },
+  filtroChipTextActive: {
+    color: '#fff'
   }
 });
 

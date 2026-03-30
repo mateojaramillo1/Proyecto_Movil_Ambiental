@@ -134,6 +134,17 @@ const RegistrosScreen = ({ navigation }) => {
       </View>
 
       <View style={styles.cardBody}>
+        {!!item.nivelCriticidad && (
+          <View style={styles.row}>
+            <Text style={styles.label}>Criticidad:</Text>
+            <View style={[styles.criticidadPill, { backgroundColor: item.colorCriticidad || '#275493' }]}>
+              <Text style={styles.criticidadPillText}>
+                {item.nivelCriticidad}{item.puntajeCriticidad != null ? ` · ${item.puntajeCriticidad}/100` : ''}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.row}>
           <Text style={styles.label}>Fecha de Inspeccion:</Text>
           <Text style={styles.value}>{item.fechaInspeccion || formatearFecha(item.fecha)}</Text>
@@ -339,6 +350,18 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 14,
     color: '#333',
+  },
+  criticidadPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  criticidadPillText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
   },
   cardActions: {
     flexDirection: 'row',

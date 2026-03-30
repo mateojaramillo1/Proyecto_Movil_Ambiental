@@ -17,6 +17,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { insertarRegistro } from '../database';
 import { takePendingCoords } from '../utils/coordsCache';
+import { calcularCriticidad, getCriticidadConfig } from '../utils/criticidadArbol';
 
 const formatDateISO = (date) => {
   const year = date.getFullYear();
@@ -55,6 +56,7 @@ const monthNames = [
 ];
 
 const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const CRITICIDAD_CONFIG = getCriticidadConfig();
 
 const FormularioScreen = ({ navigation, route }) => {
   const [idArbol, setIdArbol] = useState('');
@@ -66,6 +68,7 @@ const FormularioScreen = ({ navigation, route }) => {
   const [distanciaViaMetros, setDistanciaViaMetros] = useState('');
   const [coordenadas, setCoordenadas] = useState('');
   const [ubicacionVia, setUbicacionVia] = useState('');
+  const [criteriosSeleccionados, setCriteriosSeleccionados] = useState([]);
 
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -97,6 +100,10 @@ const FormularioScreen = ({ navigation, route }) => {
 
     return days;
   }, [currentMonth]);
+
+  const criticidadActual = useMemo(() => {
+    return calcularCriticidad(criteriosSeleccionados);
+  }, [criteriosSeleccionados]);
 
   // Lee las coordenadas pendientes cada vez que la pantalla recibe el foco
   // (al regresar de MapaGPS) sin depender de route params para evitar re-montaje.
@@ -190,6 +197,15 @@ const FormularioScreen = ({ navigation, route }) => {
     return true;
   };
 
+  const toggleCriterioCriticidad = (key) => {
+    setCriteriosSeleccionados((prev) => {
+      if (prev.includes(key)) {
+        return prev.filter((item) => item !== key);
+      }
+      return [...prev, key];
+    });
+  };
+
   const guardarRegistro = async () => {
     if (!validarFormulario()) return;
 
@@ -210,7 +226,11 @@ const FormularioScreen = ({ navigation, route }) => {
         dapCentimetros: parseFloat(dapCentimetros),
         distanciaViaMetros: parseFloat(distanciaViaMetros),
         coordenadas: coordenadas.trim(),
-        ubicacionVia: ubicacionVia
+        ubicacionVia: ubicacionVia,
+        criteriosCriticidad: JSON.stringify(criticidadActual.selectedKeys),
+        puntajeCriticidad: criticidadActual.score,
+        nivelCriticidad: criticidadActual.levelLabel,
+        colorCriticidad: criticidadActual.color
       };
 
       await insertarRegistro(registro);
@@ -241,6 +261,7 @@ const FormularioScreen = ({ navigation, route }) => {
     setDistanciaViaMetros('');
     setCoordenadas('');
     setUbicacionVia('');
+    setCriteriosSeleccionados([]);
   };
 
   const abrirMapaGps = () => {
@@ -418,6 +439,59 @@ const FormularioScreen = ({ navigation, route }) => {
                 <Text style={styles.mapButtonText}>ABRIR MAPA GPS Y CAPTURAR COORDENADAS</Text>
               )}
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Evaluacion de Criticidad</Text>
+            <Text style={styles.sectionDescription}>
+              Marca solo las condiciones observadas. El sistema suma puntos y calcula el nivel automaticamente.
+            </Text>
+
+            <View style={[styles.criticidadSummaryCard, { backgroundColor: criticidadActual.accent, borderColor: criticidadActual.color }] }>
+              <View style={styles.criticidadSummaryRow}>
+                <Text style={styles.criticidadSummaryLabel}>Puntaje actual</Text>
+                <Text style={[styles.criticidadSummaryValue, { color: criticidadActual.color }]}>
+                  {criticidadActual.score}/{criticidadActual.maxScore}
+                </Text>
+              </View>
+              <View style={styles.criticidadSummaryRow}>
+                <Text style={styles.criticidadSummaryLabel}>Nivel</Text>
+                <View style={[styles.criticidadBadge, { backgroundColor: criticidadActual.color }]}>
+                  <Text style={styles.criticidadBadgeText}>{criticidadActual.levelLabel}</Text>
+                </View>
+              </View>
+              <Text style={styles.criticidadSummaryFoot}>
+                Criterios seleccionados: {criticidadActual.selectedCount}
+              </Text>
+            </View>
+
+            {CRITICIDAD_CONFIG.groups.map((group) => (
+              <View key={group.key} style={styles.criticidadGroupCard}>
+                <Text style={styles.criticidadGroupTitle}>{group.title}</Text>
+                <View style={styles.criticidadOptionsWrap}>
+                  {group.items.map((item) => {
+                    const selected = criteriosSeleccionados.includes(item.key);
+                    return (
+                      <TouchableOpacity
+                        key={item.key}
+                        style={[
+                          styles.criterioChip,
+                          selected && styles.criterioChipSelected,
+                          selected && { borderColor: criticidadActual.color, backgroundColor: criticidadActual.accent }
+                        ]}
+                        onPress={() => toggleCriterioCriticidad(item.key)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.criterioChipText, selected && { color: '#173c73' }]}>{item.label}</Text>
+                        <View style={[styles.criterioPointsBadge, selected && { backgroundColor: criticidadActual.color }] }>
+                          <Text style={styles.criterioPointsText}>{item.points} pts</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
           </View>
 
           <TouchableOpacity style={styles.button} onPress={guardarRegistro}>
@@ -691,6 +765,98 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: 4
+  },
+  sectionDescription: {
+    color: '#5d77a0',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10
+  },
+  criticidadSummaryCard: {
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12
+  },
+  criticidadSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8
+  },
+  criticidadSummaryLabel: {
+    color: '#24497f',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  criticidadSummaryValue: {
+    fontSize: 22,
+    fontWeight: '800'
+  },
+  criticidadSummaryFoot: {
+    marginTop: 2,
+    color: '#4f678b',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  criticidadBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5
+  },
+  criticidadBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800'
+  },
+  criticidadGroupCard: {
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#dfebff',
+    backgroundColor: '#f8fbff',
+    padding: 10
+  },
+  criticidadGroupTitle: {
+    color: '#143b74',
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 8
+  },
+  criticidadOptionsWrap: {
+    gap: 8
+  },
+  criterioChip: {
+    borderWidth: 1,
+    borderColor: '#d5e4fb',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8
+  },
+  criterioChipSelected: {
+    borderWidth: 1.5
+  },
+  criterioChipText: {
+    flex: 1,
+    color: '#365785',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  criterioPointsBadge: {
+    borderRadius: 999,
+    backgroundColor: '#2f6ab8',
+    paddingHorizontal: 10,
+    paddingVertical: 5
+  },
+  criterioPointsText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800'
   },
   menuButton: {
     width: 40,

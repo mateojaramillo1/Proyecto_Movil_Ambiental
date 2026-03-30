@@ -52,6 +52,18 @@ export const initDatabase = async () => {
   await db.execAsync(
     `ALTER TABLE registros ADD COLUMN ubicacionVia TEXT;`
   ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN criteriosCriticidad TEXT;`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN puntajeCriticidad INTEGER;`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN nivelCriticidad TEXT;`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN colorCriticidad TEXT;`
+  ).catch(() => {});
 };
 
 export const insertarRegistro = async (registro) => {
@@ -73,8 +85,12 @@ export const insertarRegistro = async (registro) => {
       dapCentimetros,
       distanciaViaMetros,
       coordenadas,
-      ubicacionVia
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ubicacionVia,
+      criteriosCriticidad,
+      puntajeCriticidad,
+      nivelCriticidad,
+      colorCriticidad
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       registro.nombre,
       registro.ubicacion,
@@ -91,7 +107,11 @@ export const insertarRegistro = async (registro) => {
       registro.dapCentimetros ?? null,
       registro.distanciaViaMetros ?? null,
       registro.coordenadas || null,
-      registro.ubicacionVia || null
+      registro.ubicacionVia || null,
+      registro.criteriosCriticidad || null,
+      registro.puntajeCriticidad ?? null,
+      registro.nivelCriticidad || null,
+      registro.colorCriticidad || null
     ]
   );
   return result.lastInsertRowId;

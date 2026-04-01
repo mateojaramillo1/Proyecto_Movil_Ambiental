@@ -454,6 +454,7 @@ const buildLeafletHtml = (points, currentLocation) => {
     let guidanceLine = null;
     let guidanceLineOutline = null;
     let guidanceTarget = null;
+    let selectedMarker = null;
     let guidanceRequestSeq = 0;
     let markersByNivel = {};
 
@@ -461,6 +462,16 @@ const buildLeafletHtml = (points, currentLocation) => {
       guidanceLayer.clearLayers();
       guidanceLine = null;
       guidanceLineOutline = null;
+      guidanceTarget = null;
+      selectedMarker = null;
+    };
+
+    const markerIsVisibleByFilter = (markerData, activeLevels) => {
+      if (!markerData) return false;
+      const nivel = markerData.nivelCriticidad || 'Sin clasificar';
+      if (nivel === 'Sin clasificar') return true;
+      if (!activeLevels || activeLevels.length === 0) return true;
+      return activeLevels.includes(nivel);
     };
 
     const fetchRoadRoute = async (targetPoint) => {
@@ -537,6 +548,8 @@ const buildLeafletHtml = (points, currentLocation) => {
       }
 
       guidanceTarget = {
+        markerId: targetPoint.markerId || null,
+        nivelCriticidad: targetPoint.nivelCriticidad || 'Sin clasificar',
         latitude: targetPoint.latitude,
         longitude: targetPoint.longitude,
         idArbol: targetPoint.idArbol || 'Arbol'
@@ -547,20 +560,27 @@ const buildLeafletHtml = (points, currentLocation) => {
 
       clearGuidance();
 
-      let routeCoords = [
-        [currentLocation.latitude, currentLocation.longitude],
-        [targetPoint.latitude, targetPoint.longitude]
-      ];
-      let distanceMeters = calculateDistanceMeters(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        targetPoint.latitude,
-        targetPoint.longitude
-      );
-      let fromRoadNetwork = false;
-      let selectedProfile = '';
+      const roadRoute = await fetchRoadRoute(targetPoint);
+      if (guidanceRequestSeq !== requestId) {
+        return;
+      }
 
-      // Dibujo inmediato con linea directa para que siempre haya feedback visual.
+      if (!(roadRoute && Array.isArray(roadRoute.coords) && roadRoute.coords.length > 1)) {
+        clearGuidance();
+        return;
+      }
+
+      const routeCoords = roadRoute.coords;
+      const distanceMeters =
+        roadRoute.distanceMeters ||
+        calculateDistanceMeters(
+          currentLocation.latitude,
+          currentLocation.longitude,
+          targetPoint.latitude,
+          targetPoint.longitude
+        );
+      const selectedProfile = roadRoute.profile || 'via';
+
       guidanceLineOutline = L.polyline(routeCoords, {
         color: '#0d3c6f',
         weight: 8,
@@ -575,58 +595,13 @@ const buildLeafletHtml = (points, currentLocation) => {
         lineJoin: 'round'
       }).addTo(guidanceLayer);
 
-      const directTip = 'Ruta directa: ' + formatDistance(distanceMeters);
-      guidanceLine.bindTooltip(directTip, {
-        permanent: true,
-        sticky: false,
-        direction: 'center',
-        className: 'route-tip'
-      });
+      guidanceLine.bindTooltip(
+        'Ruta por via (' + selectedProfile + '): ' + formatDistance(distanceMeters),
+        { permanent: true, sticky: false, direction: 'center', className: 'route-tip' }
+      );
 
       if (shouldFocus) {
-        map.flyToBounds(routeCoords, {
-          padding: [60, 60],
-          maxZoom: 18,
-          duration: 0.7
-        });
-      }
-
-      const roadRoute = await fetchRoadRoute(targetPoint);
-      if (guidanceRequestSeq !== requestId) {
-        return;
-      }
-
-      if (roadRoute && Array.isArray(roadRoute.coords) && roadRoute.coords.length > 1) {
-        // OSRM respondio: borrar linea directa y dibujar ruta GPS real
-        clearGuidance();
-        routeCoords = roadRoute.coords;
-        distanceMeters = roadRoute.distanceMeters || distanceMeters;
-        fromRoadNetwork = true;
-        selectedProfile = roadRoute.profile || '';
-
-        guidanceLineOutline = L.polyline(routeCoords, {
-          color: '#0d3c6f',
-          weight: 8,
-          opacity: 0.34,
-          lineJoin: 'round'
-        }).addTo(guidanceLayer);
-
-        guidanceLine = L.polyline(routeCoords, {
-          color: '#1e88e5',
-          weight: 5,
-          opacity: 0.95,
-          lineJoin: 'round'
-        }).addTo(guidanceLayer);
-
-        guidanceLine.bindTooltip(
-          'Ruta GPS (' + selectedProfile + '): ' + formatDistance(distanceMeters),
-          { permanent: true, sticky: false, direction: 'center', className: 'route-tip' }
-        );
-
-        if (shouldFocus) {
-          map.flyToBounds(routeCoords, { padding: [60, 60], maxZoom: 18, duration: 0.75 });
-        }
-
+        map.flyToBounds(routeCoords, { padding: [60, 60], maxZoom: 18, duration: 0.75 });
       }
     };
 
@@ -718,6 +693,7 @@ const buildLeafletHtml = (points, currentLocation) => {
     const renderMarkers = () => {
       markersLayer.clearLayers();
       markersByNivel = {};
+      clearGuidance();
       const bounds = [];
 
       if (currentLocation) {
@@ -780,12 +756,34 @@ const buildLeafletHtml = (points, currentLocation) => {
           spreadNote
         );
 
+        marker.__vinusData = {
+          markerId: p.id,
+          nivelCriticidad: p.nivelCriticidad || 'Sin clasificar',
+          latitude: p.latitude,
+          longitude: p.longitude,
+          idArbol: p.idArbol || 'Arbol'
+        };
+
         marker.on('click', () => {
           if (!currentLocation) {
             marker.openPopup();
             return;
           }
-          drawGuidanceTo(p, true);
+          selectedMarker = marker;
+          drawGuidanceTo({
+            ...p,
+            markerId: p.id
+          }, true);
+        });
+
+        marker.on('popupopen', () => {
+          if (!currentLocation) return;
+          if (guidanceTarget && guidanceTarget.markerId === p.id) return;
+          selectedMarker = marker;
+          drawGuidanceTo({
+            ...p,
+            markerId: p.id
+          }, false);
         });
 
         if (!markersByNivel[p.nivelCriticidad]) markersByNivel[p.nivelCriticidad] = [];
@@ -869,6 +867,38 @@ const buildLeafletHtml = (points, currentLocation) => {
           }
         });
       });
+
+      // Si la ruta apunta a un arbol que ya no cumple filtro, se limpia.
+      if (guidanceTarget && !markerIsVisibleByFilter(guidanceTarget, activeLevels)) {
+        clearGuidance();
+        return;
+      }
+
+      // Si el arbol seleccionado queda fuera del filtro, ocultamos ruta inmediatamente.
+      if (selectedMarker) {
+        const data = selectedMarker.__vinusData;
+        if (!markerIsVisibleByFilter(data, activeLevels)) {
+          clearGuidance();
+          return;
+        }
+      }
+
+      // Si hay un objetivo de guia pero ya no existe/visible, tambien limpiar.
+      if (guidanceTarget) {
+        const stillVisible = Object.values(markersByNivel)
+          .flat()
+          .some((marker) => {
+            const data = marker.__vinusData;
+            if (!data) return false;
+            if (guidanceTarget.markerId != null && data.markerId !== guidanceTarget.markerId) return false;
+            if (!markerIsVisibleByFilter(data, activeLevels)) return false;
+            return markersLayer.hasLayer(marker);
+          });
+
+        if (!stillVisible) {
+          clearGuidance();
+        }
+      }
     };
 
     const handleIncomingMessage = (event) => {

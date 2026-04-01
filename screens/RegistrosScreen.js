@@ -9,7 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator
 } from 'react-native';
-import { obtenerRegistros, eliminarRegistro, actualizarEstado } from '../database';
+import { obtenerRegistros, eliminarRegistro } from '../database';
 import * as Sharing from 'expo-sharing';
 import { exportarRegistrosExcel } from '../utils/exportRegistrosExcel';
 import { normalizeCoordsToDms } from '../utils/coordsFormat';
@@ -67,16 +67,6 @@ const RegistrosScreen = ({ navigation }) => {
     }
   };
 
-  const cambiarEstado = async (id, estadoActual) => {
-    const nuevoEstado = estadoActual === 'Pendiente' ? 'Completado' : 'Pendiente';
-    try {
-      await actualizarEstado(id, nuevoEstado);
-      await cargarRegistros();
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar el estado');
-    }
-  };
-
   const formatearFecha = (fechaISO) => {
     const fecha = new Date(fechaISO);
     return fecha.toLocaleDateString('es-ES', {
@@ -125,12 +115,6 @@ const RegistrosScreen = ({ navigation }) => {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.idArbol || item.nombre}</Text>
-        <View style={[
-          styles.estadoBadge,
-          item.estado === 'Completado' ? styles.completado : styles.pendiente
-        ]}>
-          <Text style={styles.estadoText}>{item.estado}</Text>
-        </View>
       </View>
 
       <View style={styles.cardBody}>
@@ -183,16 +167,7 @@ const RegistrosScreen = ({ navigation }) => {
 
       <View style={styles.cardActions}>
         <TouchableOpacity
-          style={[styles.actionButton, styles.estadoButton]}
-          onPress={() => cambiarEstado(item.id, item.estado)}
-        >
-          <Text style={styles.actionButtonText}>
-            {item.estado === 'Pendiente' ? 'Marcar Completado' : 'Marcar Pendiente'}
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
+          style={styles.deleteButton}
           onPress={() => confirmarEliminar(item.id)}
         >
           <Text style={styles.deleteButtonText}>Eliminar</Text>
@@ -306,7 +281,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     marginBottom: 15,
     paddingBottom: 10,
@@ -318,22 +293,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#275493',
     flex: 1,
-  },
-  estadoBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 15,
-  },
-  pendiente: {
-    backgroundColor: '#FFA500',
-  },
-  completado: {
-    backgroundColor: '#4CAF50',
-  },
-  estadoText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   cardBody: {
     marginBottom: 15,
@@ -365,24 +324,12 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
   },
-  actionButton: {
-    flex: 1,
+  deleteButton: {
+    width: '100%',
     padding: 10,
     borderRadius: 6,
     alignItems: 'center',
-  },
-  estadoButton: {
-    backgroundColor: '#275493',
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  deleteButton: {
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#dc3545',

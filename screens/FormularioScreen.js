@@ -57,9 +57,28 @@ const monthNames = [
 
 const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const CRITICIDAD_CONFIG = getCriticidadConfig();
+const UF_OPTIONS = [
+  'UF1 Pradera - Porcesito',
+  'UF2 Porcesito - Santiago',
+  'UF3 Tunel La Quiebra',
+  'UF4 El Limon - Cisneros',
+  'UF5 Cisneros - Alto de Dolores',
+  'UF6 Hatovial'
+];
+
+const getImagePicker = () => {
+  try {
+    return require('expo-image-picker');
+  } catch (_) {
+    return null;
+  }
+};
 
 const FormularioScreen = ({ navigation, route }) => {
   const [idArbol, setIdArbol] = useState('');
+  const [prCarretera, setPrCarretera] = useState('');
+  const [unidadFuncional, setUnidadFuncional] = useState('');
+  const [tipoVia, setTipoVia] = useState('');
   const [fechaInspeccion, setFechaInspeccion] = useState(formatDateISO(new Date()));
   const [inspector, setInspector] = useState('');
   const [especie, setEspecie] = useState('');
@@ -68,6 +87,7 @@ const FormularioScreen = ({ navigation, route }) => {
   const [distanciaViaMetros, setDistanciaViaMetros] = useState('');
   const [coordenadas, setCoordenadas] = useState('');
   const [ubicacionVia, setUbicacionVia] = useState('');
+  const [fotoUri, setFotoUri] = useState('');
   const [criteriosSeleccionados, setCriteriosSeleccionados] = useState([]);
 
   const [calendarVisible, setCalendarVisible] = useState(false);
@@ -162,6 +182,18 @@ const FormularioScreen = ({ navigation, route }) => {
       Alert.alert('Error', 'Ingrese el ID del arbol');
       return false;
     }
+    if (!prCarretera.trim()) {
+      Alert.alert('Error', 'Ingrese el PR de carretera');
+      return false;
+    }
+    if (!unidadFuncional) {
+      Alert.alert('Error', 'Seleccione la unidad funcional (UF)');
+      return false;
+    }
+    if (!tipoVia) {
+      Alert.alert('Error', 'Seleccione el tipo de via');
+      return false;
+    }
     if (!fechaInspeccion.trim()) {
       Alert.alert('Error', 'Seleccione la fecha de inspeccion');
       return false;
@@ -219,6 +251,9 @@ const FormularioScreen = ({ navigation, route }) => {
         fecha: new Date().toISOString(),
         estado: 'Pendiente',
         idArbol: idArbol.trim(),
+        prCarretera: prCarretera.trim(),
+        unidadFuncional,
+        tipoVia,
         fechaInspeccion: fechaInspeccion.trim(),
         inspector: inspector.trim(),
         especie: especie.trim(),
@@ -227,6 +262,7 @@ const FormularioScreen = ({ navigation, route }) => {
         distanciaViaMetros: parseFloat(distanciaViaMetros),
         coordenadas: coordenadas.trim(),
         ubicacionVia: ubicacionVia,
+        fotoUri: fotoUri || null,
         criteriosCriticidad: JSON.stringify(criticidadActual.selectedKeys),
         puntajeCriticidad: criticidadActual.score,
         nivelCriticidad: criticidadActual.levelLabel,
@@ -253,6 +289,9 @@ const FormularioScreen = ({ navigation, route }) => {
 
   const limpiarFormulario = () => {
     setIdArbol('');
+    setPrCarretera('');
+    setUnidadFuncional('');
+    setTipoVia('');
     setFechaInspeccion(formatDateISO(new Date()));
     setInspector('');
     setEspecie('');
@@ -261,12 +300,67 @@ const FormularioScreen = ({ navigation, route }) => {
     setDistanciaViaMetros('');
     setCoordenadas('');
     setUbicacionVia('');
+    setFotoUri('');
     setCriteriosSeleccionados([]);
   };
 
   const abrirMapaGps = () => {
     setMapLoading(true);
     navigation.navigate('MapaGPS');
+  };
+
+  const capturarFoto = async () => {
+    const ImagePicker = getImagePicker();
+    if (!ImagePicker) {
+      Alert.alert('Funcion no disponible', 'Para usar foto en este dispositivo, instala la version mas reciente de la app.');
+      return;
+    }
+
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Debes habilitar el permiso de camara para tomar la foto.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setFotoUri(result.assets[0].uri);
+    }
+  };
+
+  const seleccionarFotoGaleria = async () => {
+    const ImagePicker = getImagePicker();
+    if (!ImagePicker) {
+      Alert.alert('Funcion no disponible', 'Para usar foto en este dispositivo, instala la version mas reciente de la app.');
+      return;
+    }
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Debes habilitar el permiso de galeria para seleccionar la foto.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setFotoUri(result.assets[0].uri);
+    }
+  };
+
+  const abrirSelectorFoto = () => {
+    Alert.alert('Foto del arbol', 'Selecciona como quieres agregar la foto', [
+      { text: 'Tomar foto', onPress: capturarFoto },
+      { text: 'Elegir de galeria', onPress: seleccionarFotoGaleria },
+      { text: 'Cancelar', style: 'cancel' }
+    ]);
   };
 
   const seleccionarDia = (day) => {
@@ -346,6 +440,42 @@ const FormularioScreen = ({ navigation, route }) => {
               placeholder="Ej: ARB-001"
               placeholderTextColor="#999"
             />
+
+            <Text style={styles.label}>PR (carretera) *</Text>
+            <TextInput
+              style={styles.input}
+              value={prCarretera}
+              onChangeText={setPrCarretera}
+              placeholder="Ej: PR 12+300"
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.label}>UF (Unidad Funcional) *</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={unidadFuncional}
+                onValueChange={(itemValue) => setUnidadFuncional(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Seleccione una UF" value="" />
+                {UF_OPTIONS.map((uf) => (
+                  <Picker.Item key={uf} label={uf} value={uf} />
+                ))}
+              </Picker>
+            </View>
+
+            <Text style={styles.label}>Tipo de Via *</Text>
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={tipoVia}
+                onValueChange={(itemValue) => setTipoVia(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Seleccione el tipo de via" value="" />
+                <Picker.Item label="Via sencilla" value="Via sencilla" />
+                <Picker.Item label="Doble calzada" value="Doble calzada" />
+              </Picker>
+            </View>
 
             <Text style={styles.label}>Fecha de Inspeccion *</Text>
             <TouchableOpacity style={styles.inputButton} onPress={() => setCalendarVisible(true)}>
@@ -438,6 +568,16 @@ const FormularioScreen = ({ navigation, route }) => {
               ) : (
                 <Text style={styles.mapButtonText}>ABRIR MAPA GPS Y CAPTURAR COORDENADAS</Text>
               )}
+            </TouchableOpacity>
+
+            <Text style={styles.label}>Foto del Arbol</Text>
+            {fotoUri ? (
+              <Image source={{ uri: fotoUri }} style={styles.photoPreview} resizeMode="cover" />
+            ) : (
+              <Text style={styles.helperText}>Aun no se ha seleccionado una foto.</Text>
+            )}
+            <TouchableOpacity style={styles.photoButton} onPress={abrirSelectorFoto} activeOpacity={0.88}>
+              <Text style={styles.mapButtonText}>{fotoUri ? 'CAMBIAR FOTO' : 'AGREGAR FOTO'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -934,6 +1074,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
     letterSpacing: 0.6
+  },
+  photoPreview: {
+    marginTop: 8,
+    width: '100%',
+    height: 190,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bfd3f5'
+  },
+  helperText: {
+    marginTop: 6,
+    color: '#6b87b2',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  photoButton: {
+    marginTop: 10,
+    backgroundColor: '#275493',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2f6ab8'
   },
   button: {
     backgroundColor: '#163f7b',

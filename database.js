@@ -29,6 +29,15 @@ export const initDatabase = async () => {
     `ALTER TABLE registros ADD COLUMN idArbol TEXT;`
   ).catch(() => {});
   await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN prCarretera TEXT;`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN unidadFuncional TEXT;`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN tipoVia TEXT;`
+  ).catch(() => {});
+  await db.execAsync(
     `ALTER TABLE registros ADD COLUMN fechaInspeccion TEXT;`
   ).catch(() => {});
   await db.execAsync(
@@ -51,6 +60,9 @@ export const initDatabase = async () => {
   ).catch(() => {});
   await db.execAsync(
     `ALTER TABLE registros ADD COLUMN ubicacionVia TEXT;`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN fotoUri TEXT;`
   ).catch(() => {});
   await db.execAsync(
     `ALTER TABLE registros ADD COLUMN criteriosCriticidad TEXT;`
@@ -78,6 +90,9 @@ export const insertarRegistro = async (registro) => {
       fecha,
       estado,
       idArbol,
+      prCarretera,
+      unidadFuncional,
+      tipoVia,
       fechaInspeccion,
       inspector,
       especie,
@@ -86,11 +101,12 @@ export const insertarRegistro = async (registro) => {
       distanciaViaMetros,
       coordenadas,
       ubicacionVia,
+      fotoUri,
       criteriosCriticidad,
       puntajeCriticidad,
       nivelCriticidad,
       colorCriticidad
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       registro.nombre,
       registro.ubicacion,
@@ -100,6 +116,9 @@ export const insertarRegistro = async (registro) => {
       registro.fecha,
       registro.estado || 'Pendiente',
       registro.idArbol || null,
+      registro.prCarretera || null,
+      registro.unidadFuncional || null,
+      registro.tipoVia || null,
       registro.fechaInspeccion || null,
       registro.inspector || null,
       registro.especie || null,
@@ -108,6 +127,7 @@ export const insertarRegistro = async (registro) => {
       registro.distanciaViaMetros ?? null,
       registro.coordenadas || null,
       registro.ubicacionVia || null,
+      registro.fotoUri || null,
       registro.criteriosCriticidad || null,
       registro.puntajeCriticidad ?? null,
       registro.nivelCriticidad || null,

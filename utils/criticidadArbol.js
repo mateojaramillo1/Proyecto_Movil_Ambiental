@@ -51,7 +51,7 @@ const CRITERIOS_CRITICIDAD = [
   }
 ];
 
-const NIVELES_CRITICIDAD = [
+export const NIVELES_CRITICIDAD = [
   { key: 'baja', label: 'Baja', min: 0, max: 20, color: '#43a047', accent: '#d9f2df' },
   { key: 'media', label: 'Media', min: 21, max: 40, color: '#fdd835', accent: '#fff5c2' },
   { key: 'alta', label: 'Alta', min: 41, max: 60, color: '#fb8c00', accent: '#ffe0b8' },
@@ -66,26 +66,26 @@ const CRITERIOS_ESPECIALES = {
   historial_fallas: 'alta'
 };
 
-const INTERVENCION_POR_NIVEL = {
+export const INTERVENCION_POR_NIVEL = {
   baja: {
-    tipo: 'Mantenimiento rutinario',
-    prioridad: 'Programada'
+    tipo: 'Seguimiento',
+    prioridad: 'Seguimiento'
   },
   media: {
-    tipo: 'Intervencion preventiva',
-    prioridad: 'Prioritaria'
+    tipo: 'Monitoreo frecuente',
+    prioridad: 'Monitoreo frecuente'
   },
   alta: {
-    tipo: 'Intervencion correctiva',
-    prioridad: 'Rapida'
+    tipo: 'Intervención programada',
+    prioridad: 'Intervención programada'
   },
   muy_alta: {
-    tipo: 'Intervencion de alto riesgo',
-    prioridad: 'Urgente'
+    tipo: 'Intervención prioritaria',
+    prioridad: 'Intervención prioritaria'
   },
   critica: {
-    tipo: 'Intervencion inmediata de emergencia',
-    prioridad: 'Inmediata'
+    tipo: 'Intervención inmediata',
+    prioridad: 'Intervención inmediata'
   }
 };
 

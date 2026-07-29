@@ -163,6 +163,20 @@ const RegistrosScreen = ({ navigation }) => {
           <Text style={styles.label}>Coordenadas:</Text>
           <Text style={styles.value}>{normalizeCoordsToDms(item.coordenadas || item.ubicacion)}</Text>
         </View>
+
+        {!!item.tipoIntervencion && (
+          <View style={styles.row}>
+            <Text style={styles.label}>Tipo de Intervencion:</Text>
+            <Text style={styles.value}>{item.tipoIntervencion}</Text>
+          </View>
+        )}
+
+        {!!item.prioridadIntervencion && (
+          <View style={styles.row}>
+            <Text style={styles.label}>Prioridad de Intervencion:</Text>
+            <Text style={styles.value}>{item.prioridadIntervencion}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.cardActions}>

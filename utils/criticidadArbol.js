@@ -151,10 +151,7 @@ export const calcularCriticidad = (selectedKeys = []) => {
 };
 
 export const getIntervencionRecomendada = (levelKey) => {
-  return INTERVENCION_POR_NIVEL[levelKey] || {
-    tipo: 'Mantenimiento rutinario',
-    prioridad: 'Programada'
-  };
+  return INTERVENCION_POR_NIVEL[levelKey] || INTERVENCION_POR_NIVEL.baja;
 };
 
 export const getCriticidadConfig = () => {

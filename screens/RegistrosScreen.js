@@ -167,14 +167,14 @@ const RegistrosScreen = ({ navigation }) => {
         {!!item.tipoIntervencion && (
           <View style={styles.row}>
             <Text style={styles.label}>Tipo de Intervencion:</Text>
-            <Text style={styles.value}>{item.tipoIntervencion}</Text>
+            <Text style={[styles.value, { color: item.colorCriticidad, fontWeight: 'bold' }]}>{item.tipoIntervencion}</Text>
           </View>
         )}
 
         {!!item.prioridadIntervencion && (
           <View style={styles.row}>
             <Text style={styles.label}>Prioridad de Intervencion:</Text>
-            <Text style={styles.value}>{item.prioridadIntervencion}</Text>
+            <Text style={[styles.value, { color: item.colorCriticidad, fontWeight: 'bold' }]}>{item.prioridadIntervencion}</Text>
           </View>
         )}
       </View>

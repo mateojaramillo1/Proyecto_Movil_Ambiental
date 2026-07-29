@@ -66,6 +66,29 @@ const CRITERIOS_ESPECIALES = {
   historial_fallas: 'alta'
 };
 
+const INTERVENCION_POR_NIVEL = {
+  baja: {
+    tipo: 'Mantenimiento rutinario',
+    prioridad: 'Programada'
+  },
+  media: {
+    tipo: 'Intervencion preventiva',
+    prioridad: 'Prioritaria'
+  },
+  alta: {
+    tipo: 'Intervencion correctiva',
+    prioridad: 'Rapida'
+  },
+  muy_alta: {
+    tipo: 'Intervencion de alto riesgo',
+    prioridad: 'Urgente'
+  },
+  critica: {
+    tipo: 'Intervencion inmediata de emergencia',
+    prioridad: 'Inmediata'
+  }
+};
+
 const buildCriteriaIndex = () => {
   const index = {};
   CRITERIOS_CRITICIDAD.forEach((group) => {
@@ -124,6 +147,13 @@ export const calcularCriticidad = (selectedKeys = []) => {
     selectedCount: selectedItems.length,
     selectedKeys: uniqueKeys,
     selectedItems
+  };
+};
+
+export const getIntervencionRecomendada = (levelKey) => {
+  return INTERVENCION_POR_NIVEL[levelKey] || {
+    tipo: 'Mantenimiento rutinario',
+    prioridad: 'Programada'
   };
 };
 

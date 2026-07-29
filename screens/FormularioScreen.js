@@ -17,7 +17,7 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { insertarRegistro } from '../database';
 import { takePendingCoords } from '../utils/coordsCache';
-import { calcularCriticidad, getCriticidadConfig } from '../utils/criticidadArbol';
+import { calcularCriticidad, getCriticidadConfig, getIntervencionRecomendada } from '../utils/criticidadArbol';
 
 const formatDateISO = (date) => {
   const year = date.getFullYear();
@@ -242,6 +242,8 @@ const FormularioScreen = ({ navigation, route }) => {
     if (!validarFormulario()) return;
 
     try {
+      const intervencion = getIntervencionRecomendada(criticidadActual.levelKey);
+
       const registro = {
         nombre: inspector.trim(),
         ubicacion: coordenadas.trim(),
@@ -266,21 +268,16 @@ const FormularioScreen = ({ navigation, route }) => {
         criteriosCriticidad: JSON.stringify(criticidadActual.selectedKeys),
         puntajeCriticidad: criticidadActual.score,
         nivelCriticidad: criticidadActual.levelLabel,
-        colorCriticidad: criticidadActual.color
+        colorCriticidad: criticidadActual.color,
+        tipoIntervencion: intervencion.tipo,
+        prioridadIntervencion: intervencion.prioridad
       };
 
       await insertarRegistro(registro);
 
-      Alert.alert('Exito', 'Registro guardado correctamente', [
-        {
-          text: 'Ver registros',
-          onPress: () => navigation.navigate('Registros')
-        },
-        {
-          text: 'Nuevo registro',
-          onPress: limpiarFormulario
-        }
-      ]);
+      Alert.alert('Éxito', 'Registro guardado correctamente.');
+      console.log('limpiarFormulario called');
+      limpiarFormulario();
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar el registro');
       console.error(error);
@@ -406,11 +403,17 @@ const FormularioScreen = ({ navigation, route }) => {
             onPress={() => setMenuVisible(true)}
             activeOpacity={0.85}
           >
-            <View style={styles.menuLine} />
-            <View style={styles.menuLine} />
-            <View style={styles.menuLine} />
+            <View style={styles.menuIconWrap}>
+              <View style={styles.menuLine} />
+              <View style={styles.menuLine} />
+              <View style={styles.menuLine} />
+            </View>
+            <Text style={styles.menuButtonText}>MENU</Text>
           </TouchableOpacity>
-          <Text style={styles.darkTopMenuTitle}>VINUS AMBIENTAL</Text>
+          <View style={styles.topMenuTitleBlock}>
+            <Text style={styles.darkTopMenuTitle}>VINUS AMBIENTAL</Text>
+            <Text style={styles.darkTopMenuSubtitle}>Acceso rapido</Text>
+          </View>
           <View style={styles.darkTopMenuSpacer} />
         </View>
 
@@ -546,10 +549,10 @@ const FormularioScreen = ({ navigation, route }) => {
                 style={styles.picker}
               >
                 <Picker.Item label="Seleccione una opcion" value="" />
-                <Picker.Item label="TALUD SUPERIOR" value="TALUD SUPERIOR" />
-                <Picker.Item label="BERMA" value="BERMA" />
-                <Picker.Item label="SEPARADOR" value="SEPARADOR" />
-                <Picker.Item label="TALUD INFERIOR" value="TALUD INFERIOR" />
+                <Picker.Item label="Talud" value="TALUD" />
+                <Picker.Item label="Separador" value="SEPARADOR" />
+                <Picker.Item label="Franja de retiro" value="FRANJA DE RETIRO" />
+                <Picker.Item label="Predio Privado" value="PREDIO PRIVADO" />
               </Picker>
             </View>
 
@@ -704,7 +707,15 @@ const FormularioScreen = ({ navigation, route }) => {
         <View style={styles.menuOverlay}>
           <TouchableOpacity style={styles.menuBackdrop} onPress={() => setMenuVisible(false)} />
           <View style={styles.sideMenu}>
-            <Text style={styles.sideMenuTitle}>Menu</Text>
+            <View style={styles.sideMenuHeader}>
+              <View>
+                <Text style={styles.sideMenuTitle}>Menu principal</Text>
+                <Text style={styles.sideMenuSubtitle}>Navega rapido entre modulos</Text>
+              </View>
+              <TouchableOpacity style={styles.sideMenuClose} onPress={() => setMenuVisible(false)} activeOpacity={0.85}>
+                <Text style={styles.sideMenuCloseText}>X</Text>
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
               style={styles.sideMenuItem}
               onPress={() => {
@@ -712,7 +723,14 @@ const FormularioScreen = ({ navigation, route }) => {
                 navigation.navigate('Registros');
               }}
             >
-              <Text style={styles.sideMenuItemText}>Ver registros</Text>
+              <View style={styles.sideMenuItemIcon}>
+                <Text style={styles.sideMenuItemIconText}>R</Text>
+              </View>
+              <View style={styles.sideMenuItemBody}>
+                <Text style={styles.sideMenuItemText}>Ver registros</Text>
+                <Text style={styles.sideMenuItemHint}>Consulta y gestiona inspecciones guardadas</Text>
+              </View>
+              <Text style={styles.sideMenuChevron}>{'>'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.sideMenuItem}
@@ -721,7 +739,14 @@ const FormularioScreen = ({ navigation, route }) => {
                 navigation.navigate('VisorMapaArboles');
               }}
             >
-              <Text style={styles.sideMenuItemText}>Visor mapa arboles</Text>
+              <View style={styles.sideMenuItemIcon}>
+                <Text style={styles.sideMenuItemIconText}>M</Text>
+              </View>
+              <View style={styles.sideMenuItemBody}>
+                <Text style={styles.sideMenuItemText}>Visor mapa arboles</Text>
+                <Text style={styles.sideMenuItemHint}>Explora ubicaciones registradas en el mapa</Text>
+              </View>
+              <Text style={styles.sideMenuChevron}>{'>'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.sideMenuItemSecondary} onPress={() => setMenuVisible(false)}>
               <Text style={styles.sideMenuItemSecondaryText}>Cerrar</Text>
@@ -852,23 +877,41 @@ const styles = StyleSheet.create({
   darkTopMenuBar: {
     marginTop: (StatusBar.currentHeight || 0) + 4,
     marginBottom: 12,
-    backgroundColor: '#0f376e',
-    borderRadius: 18,
+    backgroundColor: '#0d3f84',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2e66b2',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: '#0a2c5b',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 5
+  },
+  topMenuTitleBlock: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1
   },
   darkTopMenuTitle: {
     color: '#ffffff',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
-    letterSpacing: 1.2
+    letterSpacing: 1.1
+  },
+  darkTopMenuSubtitle: {
+    marginTop: 2,
+    color: 'rgba(224, 237, 255, 0.88)',
+    fontSize: 12,
+    fontWeight: '600'
   },
   darkTopMenuSpacer: {
-    width: 40,
-    height: 40
+    width: 58,
+    height: 48
   },
   topBarBrandOnly: {
     marginBottom: 14,
@@ -999,18 +1042,27 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   menuButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    width: 58,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
+    borderColor: 'rgba(255,255,255,0.46)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4
   },
+  menuIconWrap: {
+    gap: 3
+  },
+  menuButtonText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.9
+  },
   menuLine: {
-    width: 16,
+    width: 18,
     height: 2,
     borderRadius: 2,
     backgroundColor: '#ffffff'
@@ -1211,52 +1263,118 @@ const styles = StyleSheet.create({
   },
   menuBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)'
+    backgroundColor: 'rgba(8, 28, 56, 0.48)'
   },
   sideMenu: {
-    width: 260,
+    width: '78%',
+    maxWidth: 320,
     backgroundColor: '#ffffff',
-    paddingTop: 52,
+    paddingTop: 28,
     paddingHorizontal: 16,
+    paddingBottom: 18,
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
     borderLeftWidth: 1,
-    borderLeftColor: '#d9e5f7',
+    borderLeftColor: '#d6e4fb',
     shadowColor: '#153059',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: -3, height: 0 },
-    elevation: 8
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    shadowOffset: { width: -5, height: 0 },
+    elevation: 12
+  },
+  sideMenuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16
   },
   sideMenuTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     color: '#275493',
-    marginBottom: 18
+    letterSpacing: 0.2
+  },
+  sideMenuSubtitle: {
+    marginTop: 2,
+    color: '#6f8eb8',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  sideMenuClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#c7d9f8',
+    backgroundColor: '#f3f8ff',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  sideMenuCloseText: {
+    color: '#2e5d9d',
+    fontSize: 14,
+    fontWeight: '800'
   },
   sideMenuItem: {
-    backgroundColor: '#edf3ff',
+    backgroundColor: '#f2f7ff',
     borderWidth: 1,
     borderColor: '#bfd3f5',
-    borderRadius: 10,
-    paddingVertical: 13,
+    borderRadius: 14,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    marginBottom: 10
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 68
+  },
+  sideMenuItemIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dce9ff',
+    marginRight: 10
+  },
+  sideMenuItemIconText: {
+    color: '#2f5f9f',
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  sideMenuItemBody: {
+    flex: 1,
+    paddingRight: 8
   },
   sideMenuItemText: {
     color: '#275493',
     fontSize: 15,
-    fontWeight: '700'
+    fontWeight: '800'
+  },
+  sideMenuItemHint: {
+    marginTop: 2,
+    color: '#6a86b3',
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  sideMenuChevron: {
+    color: '#2f6ab8',
+    fontSize: 18,
+    fontWeight: '800'
   },
   sideMenuItemSecondary: {
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingVertical: 13,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#d9e5f7'
+    borderColor: '#c8dbf8',
+    backgroundColor: '#ffffff',
+    marginTop: 2,
+    alignItems: 'center'
   },
   sideMenuItemSecondaryText: {
-    color: '#6a86b3',
-    fontSize: 14,
-    fontWeight: '600'
+    color: '#3e6ea9',
+    fontSize: 15,
+    fontWeight: '700'
   },
 });
 

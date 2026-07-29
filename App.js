@@ -13,6 +13,7 @@ import FormularioScreen from './screens/FormularioScreen';
 import MapaScreen from './screens/MapaScreen';
 import RegistrosScreen from './screens/RegistrosScreen';
 import VisorMapaScreen from './screens/VisorMapaScreen';
+import MainScreen from './screens/MainScreen';
 
 const Stack = createStackNavigator();
 
@@ -162,14 +163,15 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Formulario"
+        initialRouteName="Main"
         screenOptions={{
           headerStyle: { backgroundColor: '#275493' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
         }}
       >
-        <Stack.Screen name="Formulario" component={FormularioScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Main" component={MainScreen} options={{ title: 'VINUS AMBIENTAL' }} />
+        <Stack.Screen name="Formulario" component={FormularioScreen} options={{ title: 'Árboles en Riesgo' }} />
         <Stack.Screen name="MapaGPS" component={MapaScreen} options={{ title: 'Mapa GPS' }} />
         <Stack.Screen name="Registros" component={RegistrosScreen} options={{ title: 'Mis Registros' }} />
         <Stack.Screen name="VisorMapaArboles" component={VisorMapaScreen} options={{ title: 'Visor de Arboles' }} />

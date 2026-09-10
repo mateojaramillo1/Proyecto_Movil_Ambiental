@@ -51,7 +51,7 @@ const CRITERIOS_CRITICIDAD = [
   }
 ];
 
-export const NIVELES_CRITICIDAD = [
+const NIVELES_CRITICIDAD = [
   { key: 'baja', label: 'Baja', min: 0, max: 20, color: '#43a047', accent: '#d9f2df' },
   { key: 'media', label: 'Media', min: 21, max: 40, color: '#fdd835', accent: '#fff5c2' },
   { key: 'alta', label: 'Alta', min: 41, max: 60, color: '#fb8c00', accent: '#ffe0b8' },
@@ -66,26 +66,26 @@ const CRITERIOS_ESPECIALES = {
   historial_fallas: 'alta'
 };
 
-export const INTERVENCION_POR_NIVEL = {
+const INTERVENCION_POR_NIVEL = {
   baja: {
-    tipo: 'Seguimiento',
-    prioridad: 'Seguimiento'
+    tipo: 'Mantenimiento rutinario',
+    prioridad: 'Programada'
   },
   media: {
-    tipo: 'Monitoreo frecuente',
-    prioridad: 'Monitoreo frecuente'
+    tipo: 'Intervencion preventiva',
+    prioridad: 'Prioritaria'
   },
   alta: {
-    tipo: 'Intervención programada',
-    prioridad: 'Intervención programada'
+    tipo: 'Intervencion correctiva',
+    prioridad: 'Rapida'
   },
   muy_alta: {
-    tipo: 'Intervención prioritaria',
-    prioridad: 'Intervención prioritaria'
+    tipo: 'Intervencion de alto riesgo',
+    prioridad: 'Urgente'
   },
   critica: {
-    tipo: 'Intervención inmediata',
-    prioridad: 'Intervención inmediata'
+    tipo: 'Intervencion inmediata de emergencia',
+    prioridad: 'Inmediata'
   }
 };
 
@@ -151,7 +151,10 @@ export const calcularCriticidad = (selectedKeys = []) => {
 };
 
 export const getIntervencionRecomendada = (levelKey) => {
-  return INTERVENCION_POR_NIVEL[levelKey] || INTERVENCION_POR_NIVEL.baja;
+  return INTERVENCION_POR_NIVEL[levelKey] || {
+    tipo: 'Mantenimiento rutinario',
+    prioridad: 'Programada'
+  };
 };
 
 export const getCriticidadConfig = () => {

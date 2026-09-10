@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import { obtenerRegistros, eliminarRegistro } from '../database';
 import * as Sharing from 'expo-sharing';
 import { exportarRegistrosExcel } from '../utils/exportRegistrosExcel';
 import { normalizeCoordsToDms } from '../utils/coordsFormat';
+import { sincronizarConServidor } from '../utils/syncService';
 
 const RegistrosScreen = ({ navigation }) => {
   const [registros, setRegistros] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
 
   useEffect(() => {
     cargarRegistros();
@@ -45,6 +47,8 @@ const RegistrosScreen = ({ navigation }) => {
     await cargarRegistros();
     setRefreshing(false);
   };
+
+  const pendientesSincronizacion = registros.filter((registro) => registro.syncStatus !== 'synced').length;
 
   const confirmarEliminar = (id) => {
     Alert.alert(
@@ -90,9 +94,8 @@ const RegistrosScreen = ({ navigation }) => {
 
       if (sharingAvailable) {
         await Sharing.shareAsync(fileUri, {
-          mimeType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          UTI: 'org.openxmlformats.spreadsheetml.sheet',
+          mimeType: 'application/vnd.ms-excel',
+          UTI: 'com.microsoft.excel.xls',
           dialogTitle: 'Descargar registros en Excel'
         });
       }
@@ -111,10 +114,119 @@ const RegistrosScreen = ({ navigation }) => {
     }
   };
 
+  const handleSincronizar = async () => {
+    if (registros.length === 0) {
+      Alert.alert('Sin registros', 'No hay datos para sincronizar.');
+      return;
+    }
+
+    try {
+      setSincronizando(true);
+      const resultado = await sincronizarConServidor();
+      await cargarRegistros();
+      Alert.alert(
+        'Sincronizacion completa',
+        `Se respaldaron ${resultado.recordsSent} registros y ${resultado.historySent} intervenciones en el servidor.`
+      );
+    } catch (error) {
+      console.error('Error al sincronizar:', error);
+      Alert.alert('Error', error?.message || 'No se pudo sincronizar los datos.');
+    } finally {
+      setSincronizando(false);
+    }
+  };
+
+  const sincronizarConWebView = async () => {
+    const payload = await construirPayloadSincronizacion();
+    const safePayload = JSON.stringify(payload).replace(/<\/script/gi, '<\\/script');
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <body>
+          <script>
+            (async function () {
+              const payload = ${safePayload};
+              const url = ${JSON.stringify(syncApiUrl)};
+              const send = (message) => {
+                window.ReactNativeWebView.postMessage(JSON.stringify(message));
+              };
+
+              try {
+                const response = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                  },
+                  body: JSON.stringify(payload)
+                });
+
+                const text = await response.text();
+                let data = null;
+                try {
+                  data = JSON.parse(text);
+                } catch (error) {
+                  send({ ok: false, code: 'WEBVIEW_JSON_PARSE_ERROR', status: response.status, body: text, message: error.message });
+                  return;
+                }
+
+                if (!response.ok || !data.success) {
+                  send({ ok: false, code: 'WEBVIEW_SERVER_ERROR', status: response.status, body: text, message: data.message || 'Respuesta no exitosa' });
+                  return;
+                }
+
+                send({ ok: true, status: response.status, data: data });
+              } catch (error) {
+                send({ ok: false, code: 'WEBVIEW_NETWORK_ERROR', message: error.message || 'Fallo de red en WebView' });
+              }
+            })();
+          </script>
+        </body>
+      </html>
+    `;
+
+    return new Promise((resolve, reject) => {
+      webViewSyncResolverRef.current = { resolve, reject, payload };
+      setWebViewSyncHtml(html);
+    });
+  };
+
+  const handleWebViewSyncMessage = async (event) => {
+    const resolver = webViewSyncResolverRef.current;
+    if (!resolver) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(event.nativeEvent.data || '{}');
+      if (parsed?.ok) {
+        await marcarSincronizacionLocalCompleta();
+        resolver.resolve({
+          recordsSent: resolver.payload.registros.length,
+          historySent: resolver.payload.historialIntervenciones.length,
+        });
+      } else {
+        resolver.reject(
+          new Error(
+            `${parsed?.code || 'WEBVIEW_SYNC_ERROR'} | status=${parsed?.status ?? 'n/a'} | message=${parsed?.message || 'Sin mensaje'} | body=${String(parsed?.body || '').slice(0, 240)}`
+          )
+        );
+      }
+    } catch (error) {
+      resolver.reject(new Error(`WEBVIEW_SYNC_HANDLER_ERROR | ${error?.message || 'No se pudo interpretar el resultado del WebView'}`));
+    } finally {
+      webViewSyncResolverRef.current = null;
+      setWebViewSyncHtml('');
+    }
+  };
+
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{item.idArbol || item.nombre}</Text>
+        <View style={[styles.syncPill, item.syncStatus === 'synced' ? styles.syncPillDone : styles.syncPillPending]}>
+          <Text style={styles.syncPillText}>{item.syncStatus === 'synced' ? 'Sincronizado' : 'Pendiente'}</Text>
+        </View>
       </View>
 
       <View style={styles.cardBody}>
@@ -163,20 +275,6 @@ const RegistrosScreen = ({ navigation }) => {
           <Text style={styles.label}>Coordenadas:</Text>
           <Text style={styles.value}>{normalizeCoordsToDms(item.coordenadas || item.ubicacion)}</Text>
         </View>
-
-        {!!item.tipoIntervencion && (
-          <View style={styles.row}>
-            <Text style={styles.label}>Tipo de Intervencion:</Text>
-            <Text style={[styles.value, { color: item.colorCriticidad, fontWeight: 'bold' }]}>{item.tipoIntervencion}</Text>
-          </View>
-        )}
-
-        {!!item.prioridadIntervencion && (
-          <View style={styles.row}>
-            <Text style={styles.label}>Prioridad de Intervencion:</Text>
-            <Text style={[styles.value, { color: item.colorCriticidad, fontWeight: 'bold' }]}>{item.prioridadIntervencion}</Text>
-          </View>
-        )}
       </View>
 
       <View style={styles.cardActions}>
@@ -195,6 +293,18 @@ const RegistrosScreen = ({ navigation }) => {
       <View style={styles.header}>
         <Text style={styles.title}>Registros Ambientales</Text>
         <Text style={styles.subtitle}>Total: {registros.length} registros</Text>
+        <Text style={styles.syncStatusText}>Pendientes de sincronizar: {pendientesSincronizacion}</Text>
+        <TouchableOpacity
+          style={[styles.syncButton, sincronizando && styles.syncButtonDisabled]}
+          onPress={handleSincronizar}
+          disabled={sincronizando}
+        >
+          {sincronizando ? (
+            <ActivityIndicator size="small" color="#275493" />
+          ) : (
+            <Text style={styles.syncButtonText}>SINCRONIZAR AHORA</Text>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.exportButton, exportando && styles.exportButtonDisabled]}
           onPress={exportarExcel}
@@ -206,6 +316,28 @@ const RegistrosScreen = ({ navigation }) => {
             <Text style={styles.exportButtonText}>DESCARGAR EXCEL</Text>
           )}
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.syncDock} pointerEvents="box-none">
+        <View style={styles.syncDockCard}>
+          <View style={styles.syncDockInfoWrap}>
+            <Text style={styles.syncDockTitle}>Sincronizacion local</Text>
+            <Text style={styles.syncDockSubtitle}>
+              {pendientesSincronizacion} registros pendientes de enviar
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.syncDockButton, sincronizando && styles.syncDockButtonDisabled]}
+            onPress={handleSincronizar}
+            disabled={sincronizando}
+          >
+            {sincronizando ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.syncDockButtonText}>SINCRONIZAR</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {registros.length === 0 ? (
@@ -261,6 +393,85 @@ const styles = StyleSheet.create({
     marginTop: 5,
     opacity: 0.8,
   },
+  syncStatusText: {
+    marginTop: 10,
+    color: '#dce7f8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  syncButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    backgroundColor: '#dff3ff',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  syncButtonDisabled: {
+    opacity: 0.8,
+  },
+  syncButtonText: {
+    color: '#1a467f',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  syncDock: {
+    position: 'absolute',
+    left: 15,
+    right: 15,
+    bottom: 90,
+    zIndex: 20,
+  },
+  syncDockCard: {
+    backgroundColor: '#f4fbff',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#cfe3f5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  syncDockInfoWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  syncDockTitle: {
+    color: '#1a467f',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  syncDockSubtitle: {
+    color: '#4f6f93',
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  syncDockButton: {
+    backgroundColor: '#275493',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 999,
+    marginLeft: 10,
+  },
+  syncDockButtonDisabled: {
+    opacity: 0.8,
+  },
+  syncDockButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   exportButton: {
     marginTop: 16,
     alignSelf: 'flex-start',
@@ -271,6 +482,16 @@ const styles = StyleSheet.create({
   },
   exportButtonDisabled: {
     opacity: 0.75,
+  },
+  exportFotosButton: {
+    backgroundColor: '#275493',
+    marginTop: 8,
+  },
+  exportFotosButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.4,
   },
   exportButtonText: {
     color: '#275493',
@@ -295,7 +516,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 15,
     paddingBottom: 10,
@@ -307,6 +528,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#275493',
     flex: 1,
+    paddingRight: 10,
+  },
+  syncPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  syncPillDone: {
+    backgroundColor: '#dff3e2',
+  },
+  syncPillPending: {
+    backgroundColor: '#fff0cc',
+  },
+  syncPillText: {
+    color: '#204a84',
+    fontSize: 11,
+    fontWeight: '800',
   },
   cardBody: {
     marginBottom: 15,
@@ -397,6 +635,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: 'bold',
   },
+
 });
 
 export default RegistrosScreen;

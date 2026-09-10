@@ -9,11 +9,12 @@ import {
   Easing,
 } from 'react-native';
 import { initDatabase } from './database';
+import MainScreen from './screens/MainScreen';
 import FormularioScreen from './screens/FormularioScreen';
 import MapaScreen from './screens/MapaScreen';
 import RegistrosScreen from './screens/RegistrosScreen';
 import VisorMapaScreen from './screens/VisorMapaScreen';
-import MainScreen from './screens/MainScreen';
+import SincronizadosScreen from './screens/SincronizadosScreen';
 
 const Stack = createStackNavigator();
 
@@ -163,18 +164,19 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Main"
+        initialRouteName="Inicio"
         screenOptions={{
           headerStyle: { backgroundColor: '#275493' },
           headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
         }}
       >
-        <Stack.Screen name="Main" component={MainScreen} options={{ title: 'VINUS AMBIENTAL' }} />
-        <Stack.Screen name="Formulario" component={FormularioScreen} options={{ title: 'Árboles en Riesgo' }} />
+        <Stack.Screen name="Inicio" component={MainScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Formulario" component={FormularioScreen} options={{ headerShown: false }} />
         <Stack.Screen name="MapaGPS" component={MapaScreen} options={{ title: 'Mapa GPS' }} />
         <Stack.Screen name="Registros" component={RegistrosScreen} options={{ title: 'Mis Registros' }} />
         <Stack.Screen name="VisorMapaArboles" component={VisorMapaScreen} options={{ title: 'Visor de Arboles' }} />
+        <Stack.Screen name="Sincronizados" component={SincronizadosScreen} options={{ title: 'Datos sincronizados' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

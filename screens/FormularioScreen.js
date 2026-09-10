@@ -275,9 +275,16 @@ const FormularioScreen = ({ navigation, route }) => {
 
       await insertarRegistro(registro);
 
-      Alert.alert('Éxito', 'Registro guardado correctamente.');
-      console.log('limpiarFormulario called');
-      limpiarFormulario();
+      Alert.alert('Exito', 'Registro guardado correctamente', [
+        {
+          text: 'Ver registros',
+          onPress: () => navigation.navigate('Registros')
+        },
+        {
+          text: 'Nuevo registro',
+          onPress: limpiarFormulario
+        }
+      ]);
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar el registro');
       console.error(error);
@@ -549,10 +556,10 @@ const FormularioScreen = ({ navigation, route }) => {
                 style={styles.picker}
               >
                 <Picker.Item label="Seleccione una opcion" value="" />
-                <Picker.Item label="Talud" value="TALUD" />
-                <Picker.Item label="Separador" value="SEPARADOR" />
-                <Picker.Item label="Franja de retiro" value="FRANJA DE RETIRO" />
-                <Picker.Item label="Predio Privado" value="PREDIO PRIVADO" />
+                <Picker.Item label="TALUD SUPERIOR" value="TALUD SUPERIOR" />
+                <Picker.Item label="BERMA" value="BERMA" />
+                <Picker.Item label="SEPARADOR" value="SEPARADOR" />
+                <Picker.Item label="TALUD INFERIOR" value="TALUD INFERIOR" />
               </Picker>
             </View>
 
@@ -745,6 +752,22 @@ const FormularioScreen = ({ navigation, route }) => {
               <View style={styles.sideMenuItemBody}>
                 <Text style={styles.sideMenuItemText}>Visor mapa arboles</Text>
                 <Text style={styles.sideMenuItemHint}>Explora ubicaciones registradas en el mapa</Text>
+              </View>
+              <Text style={styles.sideMenuChevron}>{'>'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sideMenuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                navigation.navigate('Sincronizados');
+              }}
+            >
+              <View style={[styles.sideMenuItemIcon, { backgroundColor: '#dff3e2' }]}>
+                <Text style={[styles.sideMenuItemIconText, { color: '#1a7a3c' }]}>S</Text>
+              </View>
+              <View style={styles.sideMenuItemBody}>
+                <Text style={styles.sideMenuItemText}>Datos sincronizados</Text>
+                <Text style={styles.sideMenuItemHint}>Ver registros respaldados en el servidor</Text>
               </View>
               <Text style={styles.sideMenuChevron}>{'>'}</Text>
             </TouchableOpacity>

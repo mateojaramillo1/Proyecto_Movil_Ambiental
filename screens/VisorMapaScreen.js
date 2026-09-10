@@ -96,8 +96,6 @@ const buildLeafletHtml = (points, currentLocation) => {
       ubicacionVia: escapeHtml(p.ubicacionVia),
       nivelCriticidad: escapeHtml(p.nivelCriticidad || 'Sin clasificar'),
       puntajeCriticidad: p.puntajeCriticidad ?? null,
-      tipoIntervencion: escapeHtml(p.tipoIntervencion),
-      prioridadIntervencion: escapeHtml(p.prioridadIntervencion),
       coordsDms: escapeHtml(formatCoordsDms(p.latitude, p.longitude))
     }))
   );
@@ -742,19 +740,12 @@ const buildLeafletHtml = (points, currentLocation) => {
           ? '<div class="popup-line"><b>Distancia a ti:</b> ' + formatDistance(calculateDistanceMeters(currentLocation.latitude, currentLocation.longitude, p.latitude, p.longitude)) + '</div>'
           : '';
         const criticidadLine =
-          '<div class="popup-line" style="font-weight: 700; color:' + p.color + ';">' +
-          '<b>Criticidad:</b> ' + p.nivelCriticidad +
+          '<div class="popup-line"><b>Criticidad:</b> ' + p.nivelCriticidad +
           (p.puntajeCriticidad != null ? ' (' + p.puntajeCriticidad + '/100)' : '') + '</div>';
-
-        const intervencionLine = p.tipoIntervencion !== '-'
-          ? '<div class="popup-line" style="font-weight: 700; color:' + p.color + ';">' +
-          '<b>Intervencion:</b> ' + p.tipoIntervencion + '</div>'
-          : '';
 
         marker.bindPopup(
           '<div class="popup-title">' + p.idArbol + '</div>' +
           criticidadLine +
-          intervencionLine +
           '<div class="popup-line"><b>Especie:</b> ' + p.especie + '</div>' +
           '<div class="popup-line"><b>Inspector:</b> ' + p.inspector + '</div>' +
           '<div class="popup-line"><b>Ubicacion via:</b> ' + p.ubicacionVia + '</div>' +
@@ -990,9 +981,7 @@ const VisorMapaScreen = ({ navigation }) => {
           ubicacionVia: registro.ubicacionVia || '-',
           nivelCriticidad: registro.nivelCriticidad || 'Sin clasificar',
           puntajeCriticidad: registro.puntajeCriticidad,
-          colorCriticidad: getCriticidadColor(registro),
-          tipoIntervencion: registro.tipoIntervencion || '-',
-          prioridadIntervencion: registro.prioridadIntervencion || '-'
+          colorCriticidad: getCriticidadColor(registro)
         };
       })
       .filter(Boolean);

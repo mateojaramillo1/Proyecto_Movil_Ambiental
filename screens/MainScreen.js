@@ -18,11 +18,12 @@ const MainScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>Árboles en Riesgo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.button, styles.disabledButton]}>
-          <Text style={styles.buttonText}>Próximamente</Text>
+          <Text style={styles.buttonText}>Proximamente...</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.button, styles.disabledButton]}>
-          <Text style={styles.buttonText}>Próximamente</Text>
+          <Text style={styles.buttonText}>Proximamente...</Text>
         </TouchableOpacity>
+
       </View>
     </View>
   );

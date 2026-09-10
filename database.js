@@ -20,7 +20,9 @@ export const initDatabase = async () => {
       descripcion TEXT,
       cantidadResiduos REAL,
       fecha TEXT NOT NULL,
-      estado TEXT DEFAULT 'Pendiente'
+      estado TEXT DEFAULT 'Pendiente',
+      syncStatus TEXT DEFAULT 'pending',
+      syncedAt TEXT
     );`
   );
 
@@ -34,6 +36,8 @@ export const initDatabase = async () => {
       observaciones TEXT,
       fotoAntesUri TEXT,
       fotoDespuesUri TEXT,
+      syncStatus TEXT DEFAULT 'pending',
+      syncedAt TEXT,
       createdAt TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (registroId) REFERENCES registros(id) ON DELETE CASCADE
     );`
@@ -97,6 +101,19 @@ export const initDatabase = async () => {
   await db.execAsync(
     `ALTER TABLE registros ADD COLUMN prioridadIntervencion TEXT;`
   ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN syncStatus TEXT DEFAULT 'pending';`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE registros ADD COLUMN syncedAt TEXT;`
+  ).catch(() => {});
+
+  await db.execAsync(
+    `ALTER TABLE historial_intervenciones ADD COLUMN syncStatus TEXT DEFAULT 'pending';`
+  ).catch(() => {});
+  await db.execAsync(
+    `ALTER TABLE historial_intervenciones ADD COLUMN syncedAt TEXT;`
+  ).catch(() => {});
 };
 
 export const insertarRegistro = async (registro) => {
@@ -128,8 +145,10 @@ export const insertarRegistro = async (registro) => {
       nivelCriticidad,
       colorCriticidad,
       tipoIntervencion,
-      prioridadIntervencion
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      prioridadIntervencion,
+      syncStatus,
+      syncedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
     [
       registro.nombre,
       registro.ubicacion,
@@ -156,7 +175,9 @@ export const insertarRegistro = async (registro) => {
       registro.nivelCriticidad || null,
       registro.colorCriticidad || null,
       registro.tipoIntervencion || null,
-      registro.prioridadIntervencion || null
+      registro.prioridadIntervencion || null,
+      registro.syncStatus || 'pending',
+      registro.syncedAt || null
     ]
   );
   return result.lastInsertRowId;
@@ -174,7 +195,7 @@ export const eliminarRegistro = async (id) => {
 
 export const actualizarEstado = async (id, nuevoEstado) => {
   const db = await getDatabase();
-  return db.runAsync('UPDATE registros SET estado = ? WHERE id = ?', [nuevoEstado, id]);
+  return db.runAsync('UPDATE registros SET estado = ?, syncStatus = ?, syncedAt = ? WHERE id = ?', [nuevoEstado, 'pending', null, id]);
 };
 
 export const actualizarRegistro = async (registro) => {
@@ -198,7 +219,9 @@ export const actualizarRegistro = async (registro) => {
       prioridadIntervencion = ?,
       colorCriticidad = ?,
       puntajeCriticidad = ?,
-      nivelCriticidad = ?
+      nivelCriticidad = ?,
+      syncStatus = ?,
+      syncedAt = ?
     WHERE id = ?`,
     [
       registro.idArbol || null,
@@ -219,6 +242,8 @@ export const actualizarRegistro = async (registro) => {
       registro.colorCriticidad || null,
       registro.puntajeCriticidad ?? null,
       registro.nivelCriticidad || null,
+      'pending',
+      null,
       registro.id,
     ]
   );
@@ -242,8 +267,10 @@ export const insertarHistorialIntervencion = async (entry) => {
       responsable,
       observaciones,
       fotoAntesUri,
-      fotoDespuesUri
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      fotoDespuesUri,
+      syncStatus,
+      syncedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       entry.registroId,
       entry.fechaIntervencion,
@@ -252,7 +279,31 @@ export const insertarHistorialIntervencion = async (entry) => {
       entry.observaciones || null,
       entry.fotoAntesUri || null,
       entry.fotoDespuesUri || null,
+      entry.syncStatus || 'pending',
+      entry.syncedAt || null,
     ]
   );
   return result.lastInsertRowId;
+};
+
+export const obtenerResumenSincronizacion = async () => {
+  const db = await getDatabase();
+  const registrosPendientes = await db.getAllAsync(
+    "SELECT COUNT(*) AS total FROM registros WHERE syncStatus IS NULL OR syncStatus != 'synced'"
+  );
+  const historialesPendientes = await db.getAllAsync(
+    "SELECT COUNT(*) AS total FROM historial_intervenciones WHERE syncStatus IS NULL OR syncStatus != 'synced'"
+  );
+
+  return {
+    registrosPendientes: registrosPendientes?.[0]?.total || 0,
+    historialesPendientes: historialesPendientes?.[0]?.total || 0
+  };
+};
+
+export const marcarTodoComoSincronizado = async () => {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  await db.runAsync("UPDATE registros SET syncStatus = 'synced', syncedAt = ?", [now]);
+  await db.runAsync("UPDATE historial_intervenciones SET syncStatus = 'synced', syncedAt = ?", [now]);
 };
